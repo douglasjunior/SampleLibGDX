@@ -5,13 +5,15 @@ import org.robovm.apple.uikit.UIApplication;
 
 import com.badlogic.gdx.backends.iosrobovm.IOSApplication;
 import com.badlogic.gdx.backends.iosrobovm.IOSApplicationConfiguration;
-import com.github.douglasjunior.sampleLibGDX.MainGame;
 
 public class IOSLauncher extends IOSApplication.Delegate {
+
     @Override
     protected IOSApplication createApplication() {
         IOSApplicationConfiguration config = new IOSApplicationConfiguration();
-        return new IOSApplication(new MainGame(), config);
+        config.orientationPortrait = false;
+        config.orientationLandscape = true;
+        return new IOSApplication(new MainApplication(), config);
     }
 
     public static void main(String[] argv) {
