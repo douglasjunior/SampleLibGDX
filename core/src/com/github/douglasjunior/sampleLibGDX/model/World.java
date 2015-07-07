@@ -28,7 +28,7 @@ public class World {
 
     private void handleInput(float delta) {
         // Android controls
-        if (Gdx.app.getType() == Application.ApplicationType.Android) {
+        if (Gdx.app.getType() == Application.ApplicationType.Android || Gdx.app.getType() == Application.ApplicationType.iOS) {
 //            if (Gdx.input.getAccelerometerY() < -2) player.strafeLeft(delta);
 //            if (Gdx.input.getAccelerometerY() > 2) player.strafeRight(delta);
             if (Gdx.input.getAccelerometerX() < 7) player.moveForward(delta);

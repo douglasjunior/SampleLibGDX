@@ -1,6 +1,7 @@
 package com.github.douglasjunior.sampleLibGDX.screen;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
@@ -9,6 +10,7 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Array;
 import com.github.douglasjunior.sampleLibGDX.MainApplication;
 import com.github.douglasjunior.sampleLibGDX.model.World;
@@ -37,10 +39,10 @@ public class NavigationScreen extends AbstractScreen {
 
     private float lapsedTime = 0;
 
-    private Array<Vector2> historyPoints = new Array<>();
-    private volatile Array<float[]> historyToDraw = new Array<>();
+    private Array<Vector3> historyPoints = new Array<>();
     private Thread calculePointsToDraw;
 
+    private volatile float[] mVertices = new float[0];
 
     public NavigationScreen(MainApplication app) {
         super(app);
@@ -58,19 +60,42 @@ public class NavigationScreen extends AbstractScreen {
 
         //region calcule path to draw
         calculePointsToDraw = new Thread(new Runnable() {
+
             @Override
             public void run() {
+                Vector2 tmp = new Vector2();
+                Array<float[]> points = new Array<>();
                 while (!calculePointsToDraw.isInterrupted() && calculePointsToDraw.isAlive()) {
                     if (historyPoints.size > 0) {
-                        Array<float[]> history = new Array<>();
+                        points.clear();
                         for (int i = 1; i < historyPoints.size; i++) {
-                            Vector2 currentPoint = historyPoints.get(i);
-                            Vector2 lastPoint = historyPoints.get(i - 1);
+                            Vector3 currentPoint = historyPoints.get(i);
+                            Vector3 lastPoint = historyPoints.get(i - 1);
                             if (insideOfScreen(currentPoint) || insideOfScreen(lastPoint)) {
-                                history.add(new float[]{currentPoint.x, currentPoint.y, lastPoint.x, lastPoint.y});
+                                float[] p = {lastPoint.x, lastPoint.y, currentPoint.x, currentPoint.y};
+                                points.add(p);
                             }
                         }
-                        historyToDraw = history;
+
+                        float[] vertices = new float[points.size * 4];
+
+                        if (vertices.length >= 4) {
+                            for (int i = 0, j = 0; i < points.size && j < vertices.length; i++, j = i * 4) {
+                                float width = 100;
+                                float[] pts = points.get(i);
+                                Vector2 t = tmp.set(pts[3] - pts[1], pts[0] - pts[2]).nor();
+                                width *= 0.5f;
+                                float tx = t.x * width;
+                                float ty = t.y * width;
+
+                                vertices[j] = pts[0] + tx; // x1
+                                vertices[j + 1] = pts[1] + ty; // y1
+                                vertices[j + 2] = pts[0] - tx; // x2
+                                vertices[j + 3] = pts[1] - ty; // y2
+                            }
+                            mVertices = vertices;
+                        }
+
                     }
                     try {
                         Thread.sleep((long) (MAX_LAPSED_TIME * 1000));
@@ -78,7 +103,9 @@ public class NavigationScreen extends AbstractScreen {
                     }
                 }
             }
-        });
+        }
+
+        );
         calculePointsToDraw.start();
         //endregion
     }
@@ -88,7 +115,7 @@ public class NavigationScreen extends AbstractScreen {
         update(delta);
 
         Gdx.gl.glClearColor(0f, .25f, 0f, 1f);
-        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+        Gdx.gl20.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_STENCIL_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
 
         camera.position.set(world.getPlayer().getCenterPos().x * PX_PER_M, world.getPlayer().getCenterPos().y * PX_PER_M, 0);
         camera.rotate(-world.getPlayer().getRotation());
@@ -104,6 +131,7 @@ public class NavigationScreen extends AbstractScreen {
      *
      * @param delta
      */
+
     private void update(float delta) {
         world.update(delta);
 
@@ -111,7 +139,8 @@ public class NavigationScreen extends AbstractScreen {
         lapsedTime += delta;
         if (lapsedTime >= MAX_LAPSED_TIME) {
             lapsedTime = 0;
-            Vector2 point = world.getPlayer().getCenterPos().cpy().scl(PX_PER_M);
+
+            Vector3 point = new Vector3(world.getPlayer().getCenterPos().cpy().scl(PX_PER_M), world.getPlayer().getRotation());
             if (historyPoints.size == 0 || !point.equals(historyPoints.get(historyPoints.size - 1))) {
                 historyPoints.add(point);
             }
@@ -145,7 +174,7 @@ public class NavigationScreen extends AbstractScreen {
         font.draw(batch, "EndXY: " + endX + " " + endY, 10, (Gdx.graphics.getHeight() - (position += 15)));
         font.draw(batch, "LapsedTime: " + lapsedTime, 10, (Gdx.graphics.getHeight() - (position += 15)));
         font.draw(batch, "HistoryPoints: " + historyPoints.size, 10, (Gdx.graphics.getHeight() - (position += 15)));
-        font.draw(batch, "InsideOfScreen: " + historyToDraw.size, 10, (Gdx.graphics.getHeight() - (position += 15)));
+        font.draw(batch, "InsideOfScreen: " + mVertices.length, 10, (Gdx.graphics.getHeight() - (position += 15)));
         font.draw(batch, "FPS: " + Gdx.graphics.getFramesPerSecond(), 10, (Gdx.graphics.getHeight() - (position += 15)));
         //endregion
 
@@ -184,10 +213,65 @@ public class NavigationScreen extends AbstractScreen {
 
     private void renderMap() {
         debugShapes.setProjectionMatrix(camera.combined);
-        debugShapes.setColor(0.25f, 0.25f, 0.85f, 1.0f);
+
         debugShapes.begin(ShapeRenderer.ShapeType.Filled);
 
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+
+        Gdx.gl.glEnable(GL20.GL_STENCIL_TEST);
+        Gdx.gl.glStencilMask(0xFF);
+        Gdx.gl.glClearStencil(0x0);
+
+        //region draw the path
+        Gdx.gl.glStencilFunc(Gdx.gl.GL_EQUAL, 0, 0xFF);
+        Gdx.gl.glStencilOp(Gdx.gl.GL_REPLACE, Gdx.gl.GL_REPLACE, Gdx.gl.GL_REPLACE);
+        debugShapes.setColor(new Color(1f, 1f, 0f, 1f)); // AMARELO
+        if (mVertices.length >= 4) {
+            for (int i = 0; (i + 7) < mVertices.length; i += 4) {
+                debugShapes.triangle( //
+                        mVertices[i], mVertices[i + 1], //
+                        mVertices[i + 2], mVertices[i + 3], //
+                        mVertices[i + 4], mVertices[i + 5] //
+                );
+                debugShapes.triangle( //
+                        mVertices[i + 6], mVertices[i + 7], //
+                        mVertices[i + 2], mVertices[i + 3], //
+                        mVertices[i + 4], mVertices[i + 5] //
+                );
+
+            }
+        }
+        //endregion
+
+        debugShapes.flush();
+
+        //region draw the path
+        Gdx.gl.glStencilFunc(GL20.GL_EQUAL, 1, 0xFF);
+        Gdx.gl.glStencilOp(Gdx.gl.GL_REPLACE, Gdx.gl.GL_REPLACE, Gdx.gl.GL_REPLACE);
+        debugShapes.setColor(new Color(1f, 0f, 0f, 1f)); // AZUL
+        if (mVertices.length >= 4) {
+            for (int i = 0; i + 7 < mVertices.length; i += 4) {
+
+                debugShapes.triangle( //
+                        mVertices[i], mVertices[i + 1], //
+                        mVertices[i + 2], mVertices[i + 3], //
+                        mVertices[i + 4], mVertices[i + 5] //
+                );
+                debugShapes.triangle( //
+                        mVertices[i + 6], mVertices[i + 7], //
+                        mVertices[i + 2], mVertices[i + 3], //
+                        mVertices[i + 4], mVertices[i + 5] //
+                );
+            }
+        }
+        //endregion
+
+        debugShapes.flush();
+        Gdx.gl.glDisable(GL20.GL_STENCIL_TEST);
+
         //region draw the map
+        debugShapes.setColor(0.25f, 0.25f, 0.85f, 1.0f);
         float size = Math.max(camera.viewportWidth, camera.viewportHeight);
 
         startX = (int) ((world.getPlayer().getCenterPos().x * PX_PER_M - size / 2f) / gridSize) * gridSize - gridSize * 2;
@@ -205,23 +289,21 @@ public class NavigationScreen extends AbstractScreen {
         }
         //endregion
 
-        //region draw the path
-        if (historyPoints.size > 0) {
-            debugShapes.setColor(0.85f, 0.85f, 0.25f, 0.1f);
-
-            for (int i = 1; i < historyToDraw.size; i++) {
-                float[] point = historyToDraw.get(i);
-                debugShapes.rectLine(point[0], point[1], point[2], point[3], 100);
-            }
-        }
-        //endregion
-
         debugShapes.end();
+
+        Gdx.gl.glDisable(GL20.GL_BLEND);
     }
 
     private boolean insideOfScreen(Vector2 point) {
-        return point.x >= startX && point.x <= endX && point.y >= startY && point.y <= endY;
+        return insideOfScreen(point.x, point.y);
     }
 
+    private boolean insideOfScreen(Vector3 point) {
+        return insideOfScreen(point.x, point.y);
+    }
+
+    private boolean insideOfScreen(float x, float y) {
+        return x >= startX && x <= endX && y >= startY && y <= endY;
+    }
 
 }

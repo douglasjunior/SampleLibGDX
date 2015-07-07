@@ -7,10 +7,11 @@ import com.github.douglasjunior.sampleLibGDX.MainApplication;
 public class DesktopLauncher {
 	public static void main (String[] arg) {
 		LwjglApplicationConfiguration config = new LwjglApplicationConfiguration();
-		config.height = 480;
-		config.width = 720;
-		config.backgroundFPS = 60;
-		config.foregroundFPS = 60;
+            config.height = 720;
+            config.width = 1024;
+            config.backgroundFPS = 60;
+            config.foregroundFPS = 60;
+            config.stencil = 8;
 		new LwjglApplication(new MainApplication(), config);
 	}
 }

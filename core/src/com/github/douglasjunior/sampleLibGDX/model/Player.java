@@ -21,6 +21,7 @@ public class Player {
     private Vector2 hitboxBackRight = new Vector2(0.0f, 0.0f);
     private Vector2 hitboxBackLeft = new Vector2(0.0f, 0.0f);
     private Vector2 hitboxFrontLeft = new Vector2(0.0f, 0.0f);
+    private int rotationRange = 40;
 
     public Player(World world) {
         this.world = world;
@@ -52,13 +53,13 @@ public class Player {
 
     public void turnLeft(float delta) {
         velocity.set(0.0f, 0.0f);
-        rotationModifier = speed * 50 * delta;
+        rotationModifier = speed * rotationRange * delta;
         tryMove(delta);
     }
 
     public void turnRight(float delta) {
         velocity.set(0.0f, 0.0f);
-        rotationModifier = speed * -50 * delta;
+        rotationModifier = speed * -rotationRange * delta;
         tryMove(delta);
     }
 
